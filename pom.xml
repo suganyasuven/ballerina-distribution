@@ -171,6 +171,27 @@
         <dependencies>
             <dependency>
                 <groupId>org.ballerinalang</groupId>
+                <artifactId>ballerina-lang</artifactId>
+                <version>${ballerina.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ballerinalang</groupId>
+                <artifactId>ballerina-runtime</artifactId>
+                <version>${ballerina.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.ballerinalang</groupId>
+                <artifactId>ballerina-config</artifactId>
+                <version>${ballerina.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ballerinalang</groupId>
+                <artifactId>ballerina-logging</artifactId>
+                <version>${ballerina.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ballerinalang</groupId>
                 <artifactId>jballerina-tools</artifactId>
                 <version>${ballerina.version}</version>
                 <type>zip</type>
@@ -252,6 +273,11 @@
                 <groupId>me.tongfei</groupId>
                 <artifactId>progressbar</artifactId>
                 <version>0.7.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ballerinalang</groupId>
+                <artifactId>toml-parser</artifactId>
+                <version>${ballerina.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
