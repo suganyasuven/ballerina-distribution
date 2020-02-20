@@ -66,7 +66,8 @@ public class CleanCommand extends Command implements BCommand {
         if (cleanCommands == null) {
             getPrintStream().println("This will delete all distributions except the active distribution." +
                     " Still you want to continue? (y/n)");
-            if (in.next().equalsIgnoreCase("y") || in.next().equalsIgnoreCase("yes")) {
+            String res = in.next();
+            if (res.equalsIgnoreCase("y") || res.equalsIgnoreCase("yes")) {
                 ToolUtil.handleInstallDirPermission();
                 clean();
             } else {
@@ -106,6 +107,7 @@ public class CleanCommand extends Command implements BCommand {
             File folder = new File(ToolUtil.getDistributionsPath());
             File[] listOfFiles;
             listOfFiles = folder.listFiles();
+            // need to check if it is already cleaned
             for (File file: listOfFiles) {
                 if (file.isDirectory()) {
                     String version = file.getName();
