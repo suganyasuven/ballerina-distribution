@@ -21,8 +21,12 @@ import org.ballerinalang.command.util.ErrorUtil;
 import org.ballerinalang.command.util.ToolUtil;
 import picocli.CommandLine;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.List;
+
+import static org.ballerinalang.command.util.OSUtils.deleteFiles;
 
 /**
  * This class represents the "Update" command and it holds arguments and flags specified by the user.
@@ -56,7 +60,7 @@ public class UpdateCommand extends Command implements BCommand {
 
         if (updateCommands.size() > 0) {
             throw ErrorUtil.createDistSubCommandUsageExceptionWithHelp("too many arguments",
-                                                                       BallerinaCliCommands.UPDATE);
+                    BallerinaCliCommands.UPDATE);
         }
     }
 
@@ -84,7 +88,7 @@ public class UpdateCommand extends Command implements BCommand {
         String version = ToolUtil.getCurrentBallerinaVersion();
         String distVersion = ToolUtil.BALLERINA_TYPE + "-" + version;
         printStream.println("Fetching the latest patch distribution for '" + distVersion + "' from " +
-                                    "the remote server...");
+                "the remote server...");
         String latestVersion = ToolUtil.getLatest(version, "patch");
         if (latestVersion == null) {
             printStream.println("Failed to find the latest patch distribution for '" + distVersion + "'");
@@ -94,8 +98,14 @@ public class UpdateCommand extends Command implements BCommand {
         if (!latestVersion.equals(version)) {
             ToolUtil.downloadDistribution(printStream, distribution, ToolUtil.BALLERINA_TYPE, latestVersion);
             ToolUtil.useBallerinaVersion(printStream, distribution);
+            File directory = new File(ToolUtil.getDistributionsPath() + File.separator + distVersion);
+            try {
+                deleteFiles(directory.toPath(), printStream, version);
+            } catch (IOException e) {
+                throw ErrorUtil.createCommandException("error occurred while removing '" + version + "'");
+            }
             printStream.println("Successfully set the latest patch distribution '" + distribution + "' as the " +
-                                        "active distribution");
+                    "active distribution and removed distribution '" + distVersion + "'");
             return;
         }
         printStream.println("The latest patch distribution '" + distribution + "' is already the active distribution");
