@@ -6,10 +6,10 @@ SYNOPSIS
 
 
 DESCRIPTION
-       Pull fetches the specified distribution to your local environment and marks it
+       Pull fetches the specified distribution and its dependency to your local environment and marks it
        as the active version.
 
-       The update command always fetches the latest patch version whereas the pull command gives
+       The update command always fetches the latest patch version with its dependency whereas the pull command gives
        you the flexibility to fetch and use any distribution.
 
        Here, "distribution" has two parts: name and version. Following are some sample

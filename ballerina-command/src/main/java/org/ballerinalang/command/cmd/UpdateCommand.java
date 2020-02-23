@@ -93,6 +93,7 @@ public class UpdateCommand extends Command implements BCommand {
         String distribution = ToolUtil.BALLERINA_TYPE + "-" + latestVersion;
         if (!latestVersion.equals(version)) {
             ToolUtil.downloadDistribution(printStream, distribution, ToolUtil.BALLERINA_TYPE, latestVersion);
+            ToolUtil.downloadDependency(printStream, distribution, ToolUtil.BALLERINA_TYPE, latestVersion);
             ToolUtil.useBallerinaVersion(printStream, distribution);
             printStream.println("Successfully set the latest patch distribution '" + distribution + "' as the " +
                                         "active distribution");
