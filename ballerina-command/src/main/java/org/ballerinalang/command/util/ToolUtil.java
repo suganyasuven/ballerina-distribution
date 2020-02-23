@@ -303,6 +303,18 @@ public class ToolUtil {
     }
 
     /**
+     * Provides path of the dependencies.
+     * @return dependencies path
+     */
+    public static String getDependencyPath() {
+        try {
+            return OSUtils.getInstallationPath() + File.separator + "dependencies";
+        } catch (URISyntaxException e) {
+            throw ErrorUtil.createCommandException("failed to get the path of the distributions");
+        }
+    }
+
+    /**
      * Provides path of the tool unzip location.
      *
      * @return temporary directory to unzip update tool zip
@@ -416,6 +428,57 @@ public class ToolUtil {
             new File(zipFileLocation).delete();
         } finally {
             conn.disconnect();
+        }
+    }
+
+    public static void downloadDependency(PrintStream printStream, String distribution, String distributionType,
+                                          String distributionVersion) {
+        HttpURLConnection conn = null;
+        try {
+            printStream.println("Fetching the dependency for '" + distribution + "' from the remote server...");
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            URL url = new URL(ToolUtil.getServerURL() + "/dependencies/" + "jre-1.8");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("user-agent",
+                    OSUtils.getUserAgent(distributionVersion, ToolUtil.getCurrentToolsVersion(),
+                            distributionType));
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 302) {
+                String newUrl = conn.getHeaderField("Location");
+                conn = (HttpURLConnection) new URL(newUrl).openConnection();
+                conn.setRequestProperty("content-type", "binary/data");
+                ToolUtil.downloadSetupDependency(printStream, conn, "jdk8");
+            } else if (conn.getResponseCode() == 200) {
+                ToolUtil.downloadSetupDependency(printStream, conn, "jdk8");
+            } else {
+                throw ErrorUtil.createDistributionNotFoundException(distribution);
+            }
+        } catch (IOException | NoSuchAlgorithmException | KeyManagementException e) {
+            throw ErrorUtil.createCommandException(CONNECTION_ERROR_MESSAGE);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    private static void downloadSetupDependency(PrintStream printStream, HttpURLConnection conn,
+                                                String dependency) {
+        File zipFile = null;
+        try {
+            String dependencyLocation = getDependencyPath();
+            String zipFileLocation = dependencyLocation + File.separator + dependency + ".zip";
+            zipFile = Paths.get(zipFileLocation).toFile();
+            downloadFile(conn, zipFileLocation, dependency, printStream);
+            unzip(zipFileLocation, dependencyLocation);
+        } finally {
+            if (zipFile != null && zipFile.exists()) {
+                zipFile.delete();
+            }
         }
     }
 

@@ -69,6 +69,7 @@ public class PullCommand extends Command implements BCommand {
             return;
         }
         ToolUtil.downloadDistribution(printStream, distribution, distributionType, distributionVersion);
+        ToolUtil.downloadDependency(printStream, distribution, distributionType, distributionVersion);
         ToolUtil.useBallerinaVersion(printStream, distribution);
         printStream.println("'" + distribution + "' successfully set as the active distribution");
 
