@@ -366,21 +366,17 @@ public class ToolUtil {
                 sc.init(null, trustAllCerts, new java.security.SecureRandom());
                 HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
 
-                URL url = new URL(ToolUtil.getServerURL() + "/distributions/" + distributionVersion);
+                URL url = new URL("https://localhost:3030/update-tool" + "/distributions2/" + distributionVersion);
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("user-agent",
                                         OSUtils.getUserAgent(distributionVersion, ToolUtil.getCurrentToolsVersion(),
                                                              distributionType));
                 conn.setRequestProperty("Accept", "application/json");
-                if (conn.getResponseCode() == 302) {
-                    String newUrl = conn.getHeaderField("Location");
-                    conn = (HttpURLConnection) new URL(newUrl).openConnection();
-                    conn.setRequestProperty("content-type", "binary/data");
-                    ToolUtil.downloadAndSetupDist(printStream, conn, distribution);
-                    return false;
-                } else if (conn.getResponseCode() == 200) {
-                    ToolUtil.downloadAndSetupDist(printStream, conn, distribution);
+                if (conn.getResponseCode() == 200) {
+                    InputStream inputStream = conn.getInputStream();
+                    ToolUtil.getDependencies(inputStream);
+                    ToolUtil.getDistributionLocation(inputStream);
                     return false;
                 } else {
                     throw ErrorUtil.createDistributionNotFoundException(distribution);
@@ -396,6 +392,29 @@ public class ToolUtil {
                 conn.disconnect();
             }
         }
+    }
+
+    public static List<String> getDependencies(InputStream inputStream) {
+        List<String> dependencies = new ArrayList<>();
+        String json = convertStreamToString(inputStream);
+        System.out.println(json);
+        Pattern p = Pattern.compile("\"(jre-.*?)\"");
+        Matcher matcher = p.matcher(json);
+        while (matcher.find()) {
+            dependencies.add(matcher.group(1));
+        }
+        System.out.println(dependencies);
+        return dependencies;
+    }
+
+    public static String getDistributionLocation(InputStream inputStream) {
+        List<Dependency> dependencies = new ArrayList<>();
+        String location;
+        String json = convertStreamToString(inputStream);
+        Pattern p = Pattern.compile("\"location\":\"(.*?)\"");
+        Matcher matcher = p.matcher(json);
+        location = matcher.group(1);
+        return location;
     }
 
     private static void downloadAndSetupDist(PrintStream printStream, HttpURLConnection conn,
@@ -439,7 +458,6 @@ public class ToolUtil {
             SSLContext sc = SSLContext.getInstance("SSL");
             sc.init(null, trustAllCerts, new java.security.SecureRandom());
             HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-
             URL url = new URL(ToolUtil.getServerURL() + "/dependencies/" + "jre-1.8");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
