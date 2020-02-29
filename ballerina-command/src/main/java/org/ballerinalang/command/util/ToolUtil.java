@@ -40,7 +40,9 @@ import java.nio.file.Paths;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -64,6 +66,12 @@ public class ToolUtil {
     private static final String CONNECTION_ERROR_MESSAGE = "connection to the remote server failed";
     public static final boolean BALLERINA_DEV_STAGE_UPDATE = Boolean.parseBoolean(
             System.getenv("BALLERINA_DEV_STAGE_UPDATE"));
+    private static Map<String, String> dependencyMap = new HashMap<>();
+
+    private static Map<String, String> getDependencyMap() {
+        dependencyMap.put("jre-1.8", "jdk8u202-b08-jre");
+        return dependencyMap;
+    }
 
     private static TrustManager[] trustAllCerts = new TrustManager[]{
             new X509TrustManager() {
@@ -154,6 +162,12 @@ public class ToolUtil {
         return installFile.exists();
     }
 
+    public static boolean checkDependencyAvailable(String dependency) {
+        File dependencyLocation = new File(getDependencyPath() + File.separator +
+                getDependencyMap().get(dependency));
+        return dependencyLocation.exists();
+    }
+
     public static List<Distribution> getDistributions() {
         HttpURLConnection conn = null;
         List<Distribution> distributions = new ArrayList<>();
@@ -242,7 +256,7 @@ public class ToolUtil {
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("user-agent", OSUtils.getUserAgent(getCurrentBallerinaVersion(),
-                                                                       getCurrentToolsVersion(), "jballerina"));
+                    getCurrentToolsVersion(), "jballerina"));
             conn.setRequestProperty("Accept", "application/json");
             if (conn.getResponseCode() == 200) {
                 String json = convertStreamToString(conn.getInputStream());
@@ -430,9 +444,8 @@ public class ToolUtil {
             conn.disconnect();
         }
     }
-
-    public static void downloadDependency(PrintStream printStream, String distribution, String distributionType,
-                                          String distributionVersion) {
+    public static void getDependency(PrintStream printStream, String distribution, String distributionType,
+                                     String distributionVersion) {
         HttpURLConnection conn = null;
         try {
             printStream.println("Fetching the dependency for '" + distribution + "' from the remote server...");
@@ -440,20 +453,35 @@ public class ToolUtil {
             sc.init(null, trustAllCerts, new java.security.SecureRandom());
             HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
 
-            URL url = new URL(ToolUtil.getServerURL() + "/dependencies/" + "jre-1.8");
+            URL url = new URL(ToolUtil.getServerURL() + "/distributions");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("user-agent",
                     OSUtils.getUserAgent(distributionVersion, ToolUtil.getCurrentToolsVersion(),
                             distributionType));
             conn.setRequestProperty("Accept", "application/json");
-            if (conn.getResponseCode() == 302) {
-                String newUrl = conn.getHeaderField("Location");
-                conn = (HttpURLConnection) new URL(newUrl).openConnection();
-                conn.setRequestProperty("content-type", "binary/data");
-                ToolUtil.downloadSetupDependency(printStream, conn, "jdk8");
-            } else if (conn.getResponseCode() == 200) {
-                ToolUtil.downloadSetupDependency(printStream, conn, "jdk8");
+           if (conn.getResponseCode() == 200) {
+               String response = convertStreamToString(conn.getInputStream());
+               String infoRegex = "\\{.*?\\]\\}";
+               Pattern infoPattern = Pattern.compile(infoRegex);
+               Matcher infoMatcher = infoPattern.matcher(response);
+               while (infoMatcher.find()) {
+                   String distInfo = infoMatcher.group();
+                   if (distInfo.contains(distributionVersion)) {
+                       String dependencyRegex = "\"(jre-.*?)\"";
+                       Pattern dependencyPattern = Pattern.compile(dependencyRegex);
+                       Matcher dependencyMatcher = dependencyPattern.matcher(distInfo);
+                       while (dependencyMatcher.find()) {
+                           String dependencyName = dependencyMatcher.group(1);
+                           if (!ToolUtil.checkDependencyAvailable(dependencyName)) {
+                               downloadDependency(printStream, conn, dependencyName, distributionType,
+                                       distributionVersion);
+                           } else {
+                               printStream.println("Dependency '" + dependencyName + "' is already available locally");
+                           }
+                       }
+                   }
+               }
             } else {
                 throw ErrorUtil.createDistributionNotFoundException(distribution);
             }
@@ -466,19 +494,41 @@ public class ToolUtil {
         }
     }
 
-    private static void downloadSetupDependency(PrintStream printStream, HttpURLConnection conn,
-                                                String dependency) {
-        File zipFile = null;
+    private static void downloadDependency(PrintStream printStream, HttpURLConnection conn,
+                                           String dependency, String distributionType,
+                                           String distributionVersion) {
         try {
-            String dependencyLocation = getDependencyPath();
-            String zipFileLocation = dependencyLocation + File.separator + dependency + ".zip";
-            zipFile = Paths.get(zipFileLocation).toFile();
-            downloadFile(conn, zipFileLocation, dependency, printStream);
-            unzip(zipFileLocation, dependencyLocation);
-        } finally {
-            if (zipFile != null && zipFile.exists()) {
-                zipFile.delete();
+            String url = ToolUtil.getServerURL() + "/dependencies/" + dependency;
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("user-agent",
+                OSUtils.getUserAgent(distributionVersion, ToolUtil.getCurrentToolsVersion(),
+                        distributionType));
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 302) {
+                String newUrl = conn.getHeaderField("Location");
+                conn = (HttpURLConnection) new URL(newUrl).openConnection();
+                conn.setRequestProperty("content-type", "binary/data");
+                downloadAndSetupDependency(conn, printStream, dependency);
+            } else if (conn.getResponseCode() == 200) {
+                downloadAndSetupDependency(conn, printStream, dependency);
+            } else {
+                throw ErrorUtil.createDistributionNotFoundException(dependency);
             }
+        } catch (IOException e) {
+            throw ErrorUtil.createCommandException(CONNECTION_ERROR_MESSAGE);
+        }
+    }
+
+    private static void downloadAndSetupDependency(HttpURLConnection conn, PrintStream printStream, String dependency) {
+        File zipFile = null;
+        String dependencyLocation = getDependencyPath();
+        String zipFileLocation = dependencyLocation + File.separator + dependency + ".zip";
+        zipFile = Paths.get(zipFileLocation).toFile();
+        downloadFile(conn, zipFileLocation, dependency, printStream);
+        unzip(zipFileLocation, dependencyLocation);
+        if (zipFile.exists()) {
+            zipFile.delete();
         }
     }
 
