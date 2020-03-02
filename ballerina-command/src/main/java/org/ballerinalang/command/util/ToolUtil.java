@@ -40,9 +40,7 @@ import java.nio.file.Paths;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,12 +64,6 @@ public class ToolUtil {
     private static final String CONNECTION_ERROR_MESSAGE = "connection to the remote server failed";
     public static final boolean BALLERINA_DEV_STAGE_UPDATE = Boolean.parseBoolean(
             System.getenv("BALLERINA_DEV_STAGE_UPDATE"));
-    private static Map<String, String> dependencyMap = new HashMap<>();
-
-    private static Map<String, String> getDependencyMap() {
-        dependencyMap.put("jre-1.8", "jdk8u202-b08-jre");
-        return dependencyMap;
-    }
 
     private static TrustManager[] trustAllCerts = new TrustManager[]{
             new X509TrustManager() {
@@ -163,8 +155,7 @@ public class ToolUtil {
     }
 
     public static boolean checkDependencyAvailable(String dependency) {
-        File dependencyLocation = new File(getDependencyPath() + File.separator +
-                getDependencyMap().get(dependency));
+        File dependencyLocation = new File(getDependencyPath() + File.separator + dependency);
         return dependencyLocation.exists();
     }
 
@@ -392,9 +383,11 @@ public class ToolUtil {
                     conn = (HttpURLConnection) new URL(newUrl).openConnection();
                     conn.setRequestProperty("content-type", "binary/data");
                     ToolUtil.downloadAndSetupDist(printStream, conn, distribution);
+                    ToolUtil.getDependency(printStream, distribution, distributionType, distributionVersion);
                     return false;
                 } else if (conn.getResponseCode() == 200) {
                     ToolUtil.downloadAndSetupDist(printStream, conn, distribution);
+                    ToolUtil.getDependency(printStream, distribution, distributionType, distributionVersion);
                     return false;
                 } else {
                     throw ErrorUtil.createDistributionNotFoundException(distribution);
@@ -448,7 +441,7 @@ public class ToolUtil {
                                      String distributionVersion) {
         HttpURLConnection conn = null;
         try {
-            printStream.println("Fetching the dependency for '" + distribution + "' from the remote server...");
+            printStream.println("Fetching the dependencies for '" + distribution + "' from the remote server...");
             SSLContext sc = SSLContext.getInstance("SSL");
             sc.init(null, trustAllCerts, new java.security.SecureRandom());
             HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
@@ -468,7 +461,7 @@ public class ToolUtil {
                while (infoMatcher.find()) {
                    String distInfo = infoMatcher.group();
                    if (distInfo.contains(distributionVersion)) {
-                       String dependencyRegex = "\"(jre-.*?)\"";
+                       String dependencyRegex = "\"(jdk.*?)\"";
                        Pattern dependencyPattern = Pattern.compile(dependencyRegex);
                        Matcher dependencyMatcher = dependencyPattern.matcher(distInfo);
                        while (dependencyMatcher.find()) {
@@ -480,6 +473,7 @@ public class ToolUtil {
                                printStream.println("Dependency '" + dependencyName + "' is already available locally");
                            }
                        }
+                       return;
                    }
                }
             } else {
